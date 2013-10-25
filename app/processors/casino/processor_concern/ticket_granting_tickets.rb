@@ -3,8 +3,7 @@ require 'addressable/uri'
 module CASino
   module ProcessorConcern
     module TicketGrantingTickets
-
-      include CASino::ProcessorConcern::Browser
+      include Browser
 
       def find_valid_ticket_granting_ticket(tgt, user_agent, ignore_two_factor = false)
         ticket_granting_ticket = CASino::TicketGrantingTicket.where(ticket: tgt).first
@@ -50,10 +49,13 @@ module CASino
       end
 
       def remove_ticket_granting_ticket(ticket_granting_ticket, user_agent = nil)
-        tgt = find_valid_ticket_granting_ticket(ticket_granting_ticket, user_agent)
-        unless tgt.nil?
-          tgt.destroy
+        tgt = if ticket_granting_ticket.is_a? CASino::TicketGrantingTicket
+          ticket_granting_ticket
+        else
+          find_valid_ticket_granting_ticket(ticket_granting_ticket, user_agent)
         end
+
+        tgt.destroy if tgt
       end
 
       def cleanup_expired_ticket_granting_tickets(user)

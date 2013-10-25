@@ -3,7 +3,7 @@
 # This feature is not described in the CAS specification so it's completly optional
 # to implement this on the web application side.
 class CASino::TwoFactorAuthenticatorActivatorProcessor < CASino::Processor
-  include CASino::ProcessorConcern::TicketGrantingTickets
+  include CASino::ProcessorConcern::CurrentUser
   include CASino::ProcessorConcern::TwoFactorAuthenticators
 
   # The method will call one of the following methods on the listener:
@@ -13,19 +13,15 @@ class CASino::TwoFactorAuthenticatorActivatorProcessor < CASino::Processor
   # * `#invalid_one_time_password`: The user should be asked for a new OTP.
   #
   # @param [Hash] params parameters supplied by user. The processor will look for keys :otp and :id.
-  # @param [Hash] cookies cookies delivered by the client
+  # @param [Object] user A previously initializer User instance
   # @param [String] user_agent user-agent delivered by the client
-  def process(params = nil, cookies = nil, user_agent = nil)
-    cookies ||= {}
-    params ||= {}
-    tgt = find_valid_ticket_granting_ticket(cookies[:tgt], user_agent)
-    if tgt.nil?
-      @listener.user_not_logged_in
-    else
-      authenticator = tgt.user.two_factor_authenticators.where(id: params[:id]).first
-      validation_result = validate_one_time_password(params[:otp], authenticator)
+  def process(params = nil, user = nil, user_agent = nil)
+    @user = user || current_user
+    @params = params || {}
+
+    if tgt = @user.ticket(user_agent:user_agent)
       if validation_result.success?
-        tgt.user.two_factor_authenticators.where(active: true).delete_all
+        @user.two_factor_authenticators.where(active: true).delete_all
         authenticator.active = true
         authenticator.save!
         @listener.two_factor_authenticator_activated
@@ -36,6 +32,17 @@ class CASino::TwoFactorAuthenticatorActivatorProcessor < CASino::Processor
           @listener.invalid_two_factor_authenticator
         end
       end
+    else
+      @listener.user_not_logged_in
     end
+  end
+
+  private
+  def authenticator
+    @authenticator ||= @user.two_factor_authenticators.where(id: @params[:id]).first
+  end
+
+  def validation_result
+    @validation_result ||= validate_one_time_password(@params[:otp], authenticator)
   end
 end

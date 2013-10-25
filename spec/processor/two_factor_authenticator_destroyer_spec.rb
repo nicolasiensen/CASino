@@ -2,15 +2,8 @@ require 'spec_helper'
 
 describe CASino::TwoFactorAuthenticatorDestroyerProcessor do
   describe '#process' do
-    let(:listener) { Object.new }
+    let(:listener) { double('listener', assigned:user) }
     let(:processor) { described_class.new(listener) }
-    let(:cookies) { { tgt: tgt } }
-
-    before(:each) do
-      listener.stub(:user_not_logged_in)
-      listener.stub(:two_factor_authenticator_destroyed)
-      listener.stub(:invalid_two_factor_authenticator)
-    end
 
     context 'with an existing ticket-granting ticket' do
       let(:ticket_granting_ticket) { FactoryGirl.create :ticket_granting_ticket }
@@ -24,20 +17,22 @@ describe CASino::TwoFactorAuthenticatorDestroyerProcessor do
 
         it 'calls the #two_factor_authenticator_destroyed method on the listener' do
           listener.should_receive(:two_factor_authenticator_destroyed).with(no_args)
-          processor.process(params, cookies, user_agent)
+          processor.process(params, user, user_agent)
         end
 
         it 'deletes the two-factor authenticator' do
-          processor.process(params, cookies, user_agent)
+          listener.stub(:two_factor_authenticator_destroyed)
+          processor.process(params, user, user_agent)
           lambda do
             two_factor_authenticator.reload
           end.should raise_error(ActiveRecord::RecordNotFound)
         end
 
         it 'does not delete other two-factor authenticators' do
+          listener.stub(:two_factor_authenticator_destroyed)
           other = FactoryGirl.create :two_factor_authenticator
           lambda do
-            processor.process(params, cookies, user_agent)
+            processor.process(params, user, user_agent)
           end.should change(CASino::TwoFactorAuthenticator, :count).by(-1)
         end
       end
@@ -47,24 +42,23 @@ describe CASino::TwoFactorAuthenticatorDestroyerProcessor do
 
         it 'calls the #invalid_two_factor_authenticator method on the listener' do
           listener.should_receive(:invalid_two_factor_authenticator).with(no_args)
-          processor.process(params, cookies, user_agent)
+          processor.process(params, user, user_agent)
         end
 
         it 'does not delete two-factor authenticators' do
+          listener.stub(:invalid_two_factor_authenticator)
           lambda do
-            processor.process(params, cookies, user_agent)
+            processor.process(params, user, user_agent)
           end.should_not change(CASino::TwoFactorAuthenticator, :count)
         end
       end
     end
 
-    context 'with an invalid ticket-granting ticket' do
-      let(:params) { {} }
-      let(:tgt) { 'TGT-lalala' }
-      let(:user_agent) { 'TestBrowser 1.0' }
+    context 'without a logged in user' do
+      let(:user) { nil }
       it 'calls the #user_not_logged_in method on the listener' do
         listener.should_receive(:user_not_logged_in).with(no_args)
-        processor.process(params, cookies, user_agent)
+        processor.process
       end
     end
   end

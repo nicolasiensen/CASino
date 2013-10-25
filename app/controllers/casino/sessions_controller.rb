@@ -1,13 +1,15 @@
 class CASino::SessionsController < CASino::ApplicationController
   include CASino::SessionsHelper
 
+  skip_before_filter :set_current_user, only:[:create, :validate_otp]
+
   def index
-    processor(:TwoFactorAuthenticatorOverview).process(cookies, request.user_agent)
-    processor(:SessionOverview).process(cookies, request.user_agent)
+    processor(:TwoFactorAuthenticatorOverview).process(current_user, request.user_agent)
+    processor(:SessionOverview).process(current_user, request.user_agent)
   end
 
   def new
-    processor(:LoginCredentialRequestor).process(params, cookies, request.user_agent)
+    processor(:LoginCredentialRequestor).process(params, current_user, request.user_agent)
   end
 
   def create
@@ -15,18 +17,19 @@ class CASino::SessionsController < CASino::ApplicationController
   end
 
   def destroy
-    processor(:SessionDestroyer).process(params, cookies, request.user_agent)
+    processor(:SessionDestroyer).process(params, current_user, request.user_agent)
   end
 
   def destroy_others
-    processor(:OtherSessionsDestroyer).process(params, cookies, request.user_agent)
+    processor(:OtherSessionsDestroyer).process(params, current_user, request.user_agent)
   end
 
   def logout
-    processor(:Logout).process(params, cookies, request.user_agent)
+    processor(:Logout).process(params, current_user, request.user_agent)
   end
 
   def validate_otp
-    processor(:SecondFactorAuthenticationAcceptor).process(params, request.user_agent)
+    processor(:CurrentUser).process(params, request.user_agent, ignore_two_factor:true)
+    processor(:SecondFactorAuthenticationAcceptor).process(params, current_user, request.user_agent)
   end
 end

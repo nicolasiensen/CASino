@@ -5,22 +5,20 @@
 # This feature is not described in the CAS specification so it's completly optional
 # to implement this on the web application side.
 class CASino::OtherSessionsDestroyerProcessor < CASino::Processor
-  include CASino::ProcessorConcern::TicketGrantingTickets
+  include CASino::ProcessorConcern::CurrentUser
 
   # This method will call `#other_sessions_destroyed` and may supply an URL that should be presented to the user.
   # The user should be redirected to this URL immediately.
   #
   # @param [Hash] params parameters supplied by user
-  # @param [Hash] cookies cookies supplied by user
+  # @param [Object] user A previously initializer User instance
   # @param [String] user_agent user-agent delivered by the client
-  def process(params = nil, cookies = nil, user_agent = nil)
+  def process(params = nil, user = nil, user_agent = nil)
     params ||= {}
-    cookies ||= {}
-    tgt = find_valid_ticket_granting_ticket(cookies[:tgt], user_agent)
-    unless tgt.nil?
-      other_ticket_granting_tickets = tgt.user.ticket_granting_tickets.where('id != ?', tgt.id)
-      other_ticket_granting_tickets.destroy_all
-    end
+    user ||= current_user
+
+    user.other_tickets(user_agent).destroy_all
+
     @listener.other_sessions_destroyed(params[:service])
   end
 end

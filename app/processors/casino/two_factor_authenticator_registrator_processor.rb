@@ -6,19 +6,24 @@ require 'rotp'
 # This feature is not described in the CAS specification so it's completly optional
 # to implement this on the web application side.
 class CASino::TwoFactorAuthenticatorRegistratorProcessor < CASino::Processor
-  include CASino::ProcessorConcern::TicketGrantingTickets
+  include CASino::ProcessorConcern::CurrentUser
 
   # This method will call `#user_not_logged_in` or `#two_factor_authenticator_registered(two_factor_authenticator)` on the listener.
-  # @param [Hash] cookies cookies delivered by the client
+  # @param [Object] user A previously initializer User instance
   # @param [String] user_agent user-agent delivered by the client
-  def process(cookies = nil, user_agent = nil)
-    cookies ||= {}
-    tgt = find_valid_ticket_granting_ticket(cookies[:tgt], user_agent)
-    if tgt.nil?
-      @listener.user_not_logged_in
-    else
-      two_factor_authenticator = tgt.user.two_factor_authenticators.create! secret: ROTP::Base32.random_base32
+  def process(user = nil, user_agent = nil)
+    @user = user || current_user
+
+    if @user.ticket(user_agent:user_agent)
       @listener.two_factor_authenticator_registered(two_factor_authenticator)
+    else
+      @listener.user_not_logged_in
     end
   end
+
+  private
+  def two_factor_authenticator
+    @two_factor_authenticator ||= @user.two_factor_authenticators.create! secret: ROTP::Base32.random_base32
+  end
+
 end

@@ -2,7 +2,8 @@ require 'spec_helper'
 
 describe CASino::LoginCredentialRequestorProcessor do
   describe '#process' do
-    let(:listener) { Object.new }
+    let(:user) { nil }
+    let(:listener) { double('listener', assigned:user) }
     let(:processor) { described_class.new(listener) }
 
     context 'with a not allowed service' do
@@ -47,33 +48,12 @@ describe CASino::LoginCredentialRequestorProcessor do
     end
 
     context 'when logged in' do
-      let(:ticket_granting_ticket) { FactoryGirl.create :ticket_granting_ticket }
+      let(:user) { FactoryGirl.create :user }
+      let(:ticket_granting_ticket) { FactoryGirl.create :ticket_granting_ticket, user: user }
       let(:user_agent) { ticket_granting_ticket.user_agent }
-      let(:cookies) { { tgt: ticket_granting_ticket.ticket } }
 
-      before(:each) do
-        listener.stub(:user_logged_in)
-      end
-
-      context 'when two-factor authentication is pending' do
-        let(:ticket_granting_ticket) { FactoryGirl.create :ticket_granting_ticket, :awaiting_two_factor_authentication }
-
-        it 'calls the #user_not_logged_in method on the listener' do
-          listener.should_receive(:user_not_logged_in).with(kind_of(CASino::LoginTicket))
-          processor.process(nil, cookies, user_agent)
-        end
-      end
-
-      context 'when ticket-granting ticket expired' do
-        before(:each) do
-          ticket_granting_ticket.created_at = 25.hours.ago
-          ticket_granting_ticket.save!
-        end
-
-        it 'calls the #user_not_logged_in method on the listener' do
-          listener.should_receive(:user_not_logged_in).with(kind_of(CASino::LoginTicket))
-          processor.process(nil, cookies, user_agent)
-        end
+      before do
+        FactoryGirl.create :ticket_granting_ticket, user: user
       end
 
       context 'with a service' do
@@ -82,19 +62,22 @@ describe CASino::LoginCredentialRequestorProcessor do
 
         it 'calls the #user_logged_in method on the listener' do
           listener.should_receive(:user_logged_in).with(/^#{service}\?ticket=ST\-/)
-          processor.process(params, cookies, user_agent)
+          processor.process(params, user, user_agent)
         end
 
         it 'generates a service ticket' do
+          listener.stub(:user_logged_in)
           lambda do
-            processor.process(params, cookies, user_agent)
+            processor.process(params, user, user_agent)
           end.should change(CASino::ServiceTicket, :count).by(1)
         end
 
         context 'with renew parameter' do
+          let(:params) { super().merge renew:'true' }
+
           it 'calls the #user_not_logged_in method on the listener' do
             listener.should_receive(:user_not_logged_in).with(kind_of(CASino::LoginTicket))
-            processor.process(params.merge({ renew: 'true' }), cookies)
+            processor.process(params, user, user_agent)
           end
         end
       end
@@ -105,29 +88,21 @@ describe CASino::LoginCredentialRequestorProcessor do
 
         it 'does not remove the attributes' do
           listener.should_receive(:user_logged_in).with(/\?a%5B%5D=test&a%5B%5D=example&ticket=ST\-[^&]+$/)
-          processor.process(params, cookies, user_agent)
+          processor.process(params, user, user_agent)
         end
       end
 
       context 'without a service' do
         it 'calls the #user_logged_in method on the listener' do
           listener.should_receive(:user_logged_in).with(nil)
-          processor.process(nil, cookies, user_agent)
+          processor.process
         end
 
         it 'does not generate a service ticket' do
+          listener.stub(:user_logged_in)
           lambda do
-            processor.process(nil, cookies, user_agent)
+            processor.process
           end.should change(CASino::ServiceTicket, :count).by(0)
-        end
-
-        context 'with a changed browser' do
-          let(:user_agent) { 'FooBar 1.0' }
-
-          it 'calls the #user_not_logged_in method on the listener' do
-            listener.should_receive(:user_not_logged_in).with(kind_of(CASino::LoginTicket))
-            processor.process(nil, cookies, user_agent)
-          end
         end
       end
     end

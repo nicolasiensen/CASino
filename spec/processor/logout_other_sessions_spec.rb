@@ -4,7 +4,7 @@ describe CASino::OtherSessionsDestroyerProcessor do
   describe '#process' do
     let(:listener) { Object.new }
     let(:processor) { described_class.new(listener) }
-    let(:cookies) { { tgt: tgt } }
+    let(:user) { FactoryGirl.create :user }
     let(:url) { nil }
     let(:params) { { :service => url } unless url.nil? }
 
@@ -13,7 +13,6 @@ describe CASino::OtherSessionsDestroyerProcessor do
     end
 
     context 'with an existing ticket-granting ticket' do
-      let(:user) { FactoryGirl.create :user }
       let!(:other_users_ticket_granting_tickets) { FactoryGirl.create_list :ticket_granting_ticket, 3 }
       let!(:other_ticket_granting_tickets) { FactoryGirl.create_list :ticket_granting_ticket, 3, user: user }
       let!(:ticket_granting_ticket) { FactoryGirl.create :ticket_granting_ticket, user: user }
@@ -22,13 +21,13 @@ describe CASino::OtherSessionsDestroyerProcessor do
 
       it 'deletes all other ticket-granting tickets' do
         lambda do
-          processor.process(params, cookies, user_agent)
+          processor.process(params, user, user_agent)
         end.should change(CASino::TicketGrantingTicket, :count).by(-3)
       end
 
       it 'calls the #user_logged_out method on the listener' do
         listener.should_receive(:other_sessions_destroyed).with(nil)
-        processor.process(params, cookies, user_agent)
+        processor.process(params, user, user_agent)
       end
 
       context 'with an URL' do
@@ -36,7 +35,7 @@ describe CASino::OtherSessionsDestroyerProcessor do
 
         it 'calls the #user_logged_out method on the listener and passes the URL' do
           listener.should_receive(:other_sessions_destroyed).with(url)
-          processor.process(params, cookies, user_agent)
+          processor.process(params, user, user_agent)
         end
       end
     end
@@ -46,7 +45,7 @@ describe CASino::OtherSessionsDestroyerProcessor do
 
       it 'calls the #other_sessions_destroyed method on the listener' do
         listener.should_receive(:other_sessions_destroyed).with(nil)
-        processor.process(params, cookies)
+        processor.process(params, user)
       end
     end
   end

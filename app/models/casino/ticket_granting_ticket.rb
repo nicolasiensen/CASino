@@ -7,6 +7,13 @@ class CASino::TicketGrantingTicket < ActiveRecord::Base
   belongs_to :user
   has_many :service_tickets, dependent: :destroy
 
+  # Backport Rails 4's ActiveRecord::NullRelation
+  # From: http://stackoverflow.com/questions/4877931/how-to-return-an-empty-activerecord-relation
+  # See also: http://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-none
+  if Rails.version.to_i < 4
+    scope :none, where('1=0')
+  end
+
   def self.cleanup(user = nil)
     if user.nil?
       base = self
