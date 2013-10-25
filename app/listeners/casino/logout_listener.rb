@@ -7,6 +7,6 @@ class CASino::LogoutListener < CASino::Listener
     else
       assign(:url, url)
     end
-    @controller.cookies.delete :tgt
+    cookies.delete :tgt
   end
 end

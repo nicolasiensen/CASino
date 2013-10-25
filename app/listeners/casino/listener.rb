@@ -12,5 +12,9 @@ module CASino
     def assign(name, value)
       @controller.instance_variable_set("@#{name}", value)
     end
+
+    def cookies
+      @controller.send(:cookies)
+    end
   end
 end

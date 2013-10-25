@@ -7,10 +7,6 @@ class CASino::ApplicationController < ::ApplicationController
   layout 'application'
   before_filter :set_locale
 
-  def cookies
-    super
-  end
-
   protected
   def processor(processor_name, listener_name = nil)
     listener_name ||= processor_name
