@@ -4,7 +4,7 @@
     <div class="info">
       <h1><%= t('sessions.title') %></h1>
       <p>
-        <%= raw t('sessions.currently_logged_in_as', :username => @ticket_granting_tickets[0].user.username) %>
+        <%= raw t('sessions.currently_logged_in_as', :username => current_user.username) %>
       </p>
 
       <%= link_to t('sessions.label_logout_button'), logout_path, :class => 'button' %>

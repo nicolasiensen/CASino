@@ -3,7 +3,7 @@ class CASino::LoginCredentialRequestorProcessor < CASino::Processor
   include CASino::ProcessorConcern::Browser
   include CASino::ProcessorConcern::LoginTickets
   include CASino::ProcessorConcern::ServiceTickets
-  include CASino::ProcessorConcern::TicketGrantingTickets
+  include CASino::ProcessorConcern::CurrentUser
 
   # Use this method to process the request.
   #
@@ -13,17 +13,19 @@ class CASino::LoginCredentialRequestorProcessor < CASino::Processor
   # * `#service_not_allowed`: The user tried to access a service that this CAS server is not allowed to serve.
   #
   # @param [Hash] params parameters supplied by user
-  # @param [Hash] cookies cookies supplied by user
+  # @param [Object] user A previously initializer User instance
   # @param [String] user_agent user-agent delivered by the client
-  def process(params = nil, cookies = nil, user_agent = nil)
+  def process(params = nil, user = nil, user_agent = nil)
     @params = params || {}
-    @cookies = cookies || {}
     @user_agent = user_agent || {}
+    @user = user || current_user
+
     begin
       @service_url = clean_service_url(@params[:service]) unless @params[:service].nil?
     rescue Addressable::URI::InvalidURIError => e
       Rails.logger.warn "Service #{@params[:service]} not valid: #{e}"
     end
+
     if service_allowed?
       handle_allowed_service
     end
@@ -31,7 +33,7 @@ class CASino::LoginCredentialRequestorProcessor < CASino::Processor
 
   private
   def handle_allowed_service
-    if !@params[:renew] && (@ticket_granting_ticket = find_valid_ticket_granting_ticket(@cookies[:tgt], @user_agent))
+    if !@params[:renew] && ticket_granting_ticket
       handle_logged_in
     else
       handle_not_logged_in
@@ -66,5 +68,9 @@ class CASino::LoginCredentialRequestorProcessor < CASino::Processor
 
   def gateway_request?
     @params[:gateway] == 'true' && @service_url
+  end
+
+  def ticket_granting_ticket
+    @ticket_granting_ticket ||= @user.ticket(user_agent:@user_agent)
   end
 end

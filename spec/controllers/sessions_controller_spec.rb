@@ -35,9 +35,10 @@ describe CASino::SessionsController do
 
   describe 'GET "logout"' do
     it 'calls the process method of the Logout processor' do
-      CASino::LogoutProcessor.any_instance.should_receive(:process) do |params, cookies, user_agent|
+      CASino::CurrentUserProcessor.any_instance.should_receive(:process)
+      CASino::LogoutProcessor.any_instance.should_receive(:process) do |params, user, user_agent|
         params.should == controller.params
-        cookies.should == controller.cookies
+        user.should == controller.current_user
         user_agent.should == request.user_agent
       end
       get :logout, use_route: :casino
@@ -46,6 +47,7 @@ describe CASino::SessionsController do
 
   describe 'GET "index"' do
     it 'calls the process method of the SessionOverview processor' do
+      CASino::CurrentUserProcessor.any_instance.should_receive(:process)
       CASino::TwoFactorAuthenticatorOverviewProcessor.any_instance.should_receive(:process)
       CASino::SessionOverviewProcessor.any_instance.should_receive(:process)
       get :index, use_route: :casino
@@ -54,12 +56,14 @@ describe CASino::SessionsController do
 
   describe 'DELETE "destroy"' do
     let(:id) { '123' }
-    let(:tgt) { 'TGT-foobar' }
+    let(:user) { double('user') }
     it 'calls the process method of the SessionOverview processor' do
-      request.cookies[:tgt] = tgt
-      CASino::SessionDestroyerProcessor.any_instance.should_receive(:process) do |params, cookies, user_agent|
+      controller.stub(:current_user).and_return user
+
+      CASino::CurrentUserProcessor.any_instance.should_receive(:process)
+      CASino::SessionDestroyerProcessor.any_instance.should_receive(:process) do |params, user, user_agent|
         params[:id].should == id
-        cookies[:tgt].should == tgt
+        user == controller.current_user
         user_agent.should == request.user_agent
         @controller.render nothing: true
       end
@@ -69,6 +73,7 @@ describe CASino::SessionsController do
 
   describe 'GET "destroy_others"' do
     it 'calls the process method of the OtherSessionsDestroyer' do
+      CASino::CurrentUserProcessor.any_instance.should_receive(:process)
       CASino::OtherSessionsDestroyerProcessor.any_instance.should_receive(:process) do
         @controller.render nothing: true
       end

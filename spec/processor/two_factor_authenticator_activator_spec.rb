@@ -2,22 +2,12 @@ require 'spec_helper'
 
 describe CASino::TwoFactorAuthenticatorActivatorProcessor do
   describe '#process' do
-    let(:listener) { Object.new }
+    let(:listener) { double(:listener, assigned:user) }
     let(:processor) { described_class.new(listener) }
-    let(:cookies) { { tgt: tgt } }
-
-    before(:each) do
-      listener.stub(:user_not_logged_in)
-      listener.stub(:two_factor_authenticator_activated)
-      listener.stub(:invalid_two_factor_authenticator)
-      listener.stub(:invalid_one_time_password)
-      listener.stub(:two_factor_authenticator_activated)
-    end
 
     context 'with an existing ticket-granting ticket' do
       let(:ticket_granting_ticket) { FactoryGirl.create :ticket_granting_ticket }
       let(:user) { ticket_granting_ticket.user }
-      let(:tgt) { ticket_granting_ticket.ticket }
       let(:user_agent) { ticket_granting_ticket.user_agent }
       let(:id) { two_factor_authenticator.id }
       let(:otp) { '123456' }
@@ -34,7 +24,7 @@ describe CASino::TwoFactorAuthenticatorActivatorProcessor do
 
           it 'calls the `#invalid_two_factor_authenticator` method an the listener' do
             listener.should_receive(:invalid_two_factor_authenticator).with(no_args)
-            processor.process(params, cookies, user_agent)
+            processor.process(params, user, user_agent)
           end
         end
 
@@ -48,13 +38,15 @@ describe CASino::TwoFactorAuthenticatorActivatorProcessor do
 
           it 'calls the `#invalid_two_factor_authenticator` method an the listener' do
             listener.should_receive(:invalid_two_factor_authenticator).with(no_args)
-            processor.process(params, cookies, user_agent)
+            processor.process(params, user, user_agent)
           end
         end
       end
 
       context 'with a valid authenticator' do
-        let(:two_factor_authenticator) { FactoryGirl.create :two_factor_authenticator, :inactive, user: user }
+        let(:two_factor_authenticator) do
+          FactoryGirl.create :two_factor_authenticator, :inactive, user: user
+        end
 
         context 'with a valid OTP' do
           before(:each) do
@@ -63,11 +55,12 @@ describe CASino::TwoFactorAuthenticatorActivatorProcessor do
 
           it 'calls the `#two_factor_authenticator_activated` method an the listener' do
             listener.should_receive(:two_factor_authenticator_activated).with(no_args)
-            processor.process(params, cookies, user_agent)
+            processor.process(params, user, user_agent)
           end
 
           it 'does activate the authenticator' do
-            processor.process(params, cookies, user_agent)
+            listener.stub(:two_factor_authenticator_activated)
+            processor.process(params, user, user_agent)
             two_factor_authenticator.reload
             two_factor_authenticator.should be_active
           end
@@ -76,13 +69,15 @@ describe CASino::TwoFactorAuthenticatorActivatorProcessor do
             let!(:other_two_factor_authenticator) { FactoryGirl.create :two_factor_authenticator, user: user }
 
             it 'does activate the authenticator' do
-              processor.process(params, cookies, user_agent)
+              listener.stub(:two_factor_authenticator_activated)
+              processor.process(params, user, user_agent)
               two_factor_authenticator.reload
               two_factor_authenticator.should be_active
             end
 
             it 'does delete the other authenticator' do
-              processor.process(params, cookies, user_agent)
+              listener.stub(:two_factor_authenticator_activated)
+              processor.process(params, user, user_agent)
               lambda do
                 other_two_factor_authenticator.reload
               end.should raise_error(ActiveRecord::RecordNotFound)
@@ -98,11 +93,12 @@ describe CASino::TwoFactorAuthenticatorActivatorProcessor do
 
           it 'calls the `#invalid_one_time_password` method an the listener' do
             listener.should_receive(:invalid_one_time_password).with(two_factor_authenticator)
-            processor.process(params, cookies, user_agent)
+            processor.process(params, user, user_agent)
           end
 
           it 'does not activate the authenticator' do
-            processor.process(params, cookies, user_agent)
+            listener.stub(:invalid_one_time_password)
+            processor.process(params, user, user_agent)
             two_factor_authenticator.reload
             two_factor_authenticator.should_not be_active
           end
@@ -110,12 +106,11 @@ describe CASino::TwoFactorAuthenticatorActivatorProcessor do
       end
     end
 
-    context 'with an invalid ticket-granting ticket' do
-      let(:tgt) { 'TGT-lalala' }
-      let(:user_agent) { 'TestBrowser 1.0' }
+    context 'without a logged in user' do
+      let(:user) { nil }
       it 'calls the #user_not_logged_in method on the listener' do
         listener.should_receive(:user_not_logged_in).with(no_args)
-        processor.process(nil, cookies, user_agent)
+        processor.process(nil, user)
       end
     end
   end

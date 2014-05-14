@@ -11,5 +11,9 @@ FactoryGirl.define do
     trait :awaiting_two_factor_authentication do
       awaiting_two_factor_authentication true
     end
+
+    trait :expired do
+      created_at { 25.hours.ago }
+    end
   end
 end
